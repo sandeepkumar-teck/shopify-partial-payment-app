@@ -1,0 +1,8 @@
+{
+  "purchase.checkout.block.render": {},
+  "purchase.checkout.cart-line-item.render-after": {},
+  "purchase.thank-you.cart-line-item.render-after": {},
+  "purchase.checkout.cart-line-list.render-after": {},
+  "purchase.thank-you.cart-line-list.render-after": {},
+  "purchase.thank-you.block.render": {}
+}

@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+model WebhookLog {
+  id            String   @id @default(cuid())
+  shop          String
+  topic         String
+  orderId       String?
+  customerName  String?
+  customerEmail String?
+  createdAtIst  String?
+  ok            Boolean  @default(true)
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  @@unique([shop, orderId], name: "WebhookLog_shop_orderId_key")
+  @@index([shop, createdAt])
+}
+
+model ShopSettingsSnapshot {
+  shop                String   @id
+  shopId              String?
+  shopName            String?
+  currencyCode        String?
+  enabled             Boolean  @default(false)
+  productScope        String?
+  allProductsEnabled  Boolean  @default(false)
+  payRuleType         String?
+  fixedAmount         Decimal? @db.Decimal(14, 2)
+  percent             Decimal? @db.Decimal(7, 2)
+  customAmount        Decimal? @db.Decimal(14, 2)
+  surcharge           Decimal? @db.Decimal(14, 2)
+  fullyCodEnabled     Boolean  @default(false)
+  ruleCollectionIds   Json     @default("[]")
+  ruleCollections     Json     @default("[]")
+  ruleTags            Json     @default("[]")
+  productOverrides    Json     @default("{}")
+  settings            Json     @default("{}")
+  updatedAt           DateTime @default(now())
+}
+
+model ProductRuleSnapshot {
+  shopProductKey  String   @id
+  shop            String
+  productId       String
+  productTitle    String?
+  handle          String?
+  enabled         Boolean  @default(false)
+  explicitOff     Boolean  @default(false)
+  ruleSource      String?
+  payRuleType     String?
+  fixedAmount     Decimal? @db.Decimal(14, 2)
+  percent         Decimal? @db.Decimal(7, 2)
+  customAmount    Decimal? @db.Decimal(14, 2)
+  surcharge       Decimal? @db.Decimal(14, 2)
+  fullyCodEnabled Boolean?
+  skus            Json     @default("[]")
+  tags            Json     @default("[]")
+  collectionIds   Json     @default("[]")
+  collections     Json     @default("[]")
+  config          Json     @default("{}")
+  updatedAt       DateTime @default(now())
+
+  @@index([shop])
+}
+
+model ScheduledRuleSnapshot {
+  shopRuleKey     String    @id
+  shop            String
+  ruleId          String
+  name            String?
+  action          String?
+  status          String?
+  targetType      String?
+  targetIds       Json      @default("[]")
+  targetTags      Json      @default("[]")
+  targetPreviews  Json      @default("[]")
+  startAt         DateTime?
+  endAt           DateTime?
+  payRuleType     String?
+  fixedAmount     Decimal?  @db.Decimal(14, 2)
+  percent         Decimal?  @db.Decimal(7, 2)
+  customAmount    Decimal?  @db.Decimal(14, 2)
+  surcharge       Decimal?  @db.Decimal(14, 2)
+  fullyCodEnabled Boolean?
+  rule            Json      @default("{}")
+  updatedAt       DateTime  @default(now())
+
+  @@index([shop])
+}
+
+model OrderSnapshot {
+  shopOrderKey           String    @id
+  shop                   String
+  orderId                String
+  orderName              String?
+  customerName           String?
+  customerEmail          String?
+  shopifyFinancialStatus String?
+  partialPaymentStatus   String?
+  payNow                 Decimal?  @db.Decimal(14, 2)
+  remainingCod           Decimal?  @db.Decimal(14, 2)
+  collectedCod           Decimal?  @db.Decimal(14, 2)
+  fullPrice              Decimal?  @db.Decimal(14, 2)
+  invoiceScheduled       Boolean   @default(false)
+  invoiceSent            Boolean   @default(false)
+  invoiceMode            String?
+  invoiceDays            Int?
+  invoiceDueAt           DateTime?
+  invoiceSentAt          DateTime?
+  collectedVia           String?
+  tags                   Json      @default("[]")
+  lineDetails            Json      @default("[]")
+  orderCreatedAt         DateTime?
+  updatedAt              DateTime  @default(now())
+
+  @@index([shop, updatedAt])
+}

@@ -1,0 +1,12 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "t:name"
+description = "t:description"
+handle = "payment-rule-admin"
+uid = "d311d9ac-efbd-3f3d-b19d-8da9097e40ce3ceaad4c"
+type = "ui_extension"
+
+[[extensions.targeting]]
+module = "./src/OrderBlock.jsx"
+target = "admin.order-details.block.render"

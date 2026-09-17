@@ -1,0 +1,196 @@
+{{ 'partial-payment.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+  assign shop_cfg = shop.metafields['$app']['partial_payment'].value
+  if shop_cfg == blank
+    assign shop_cfg = shop.metafields['$app'].partial_payment.value
+  endif
+  if shop_cfg == blank
+    assign shop_cfg = app.metafields['$app']['partial_payment'].value
+  endif
+  if shop_cfg == blank
+    assign shop_cfg = app.metafields['$app'].partial_payment.value
+  endif
+  assign product_cfg = product.metafields['$app']['partial_payment'].value
+  if product_cfg == blank
+    assign product_cfg = product.metafields['$app'].partial_payment.value
+  endif
+  assign variant = product.selected_or_first_available_variant
+  assign shop_cfg_json = shop_cfg | json | default: ''
+  assign shop_cfg_text = shop_cfg | append: ''
+  if shop_cfg_json == blank or shop_cfg_json == 'null' or shop_cfg_json == '{}' or shop_cfg_json == '""'
+    assign shop_cfg_json = '{}'
+  endif
+  assign scope = shop_cfg.productScope | default: 'all'
+  if scope != 'selected'
+    if shop_cfg_text contains '"productScope":"selected"' or shop_cfg_json contains '"productScope":"selected"' or shop_cfg_json contains '"productScope": "selected"'
+      assign scope = 'selected'
+    endif
+  endif
+  assign all_products_on = true
+  if shop_cfg.allProductsEnabled == false or shop_cfg.allProductsEnabled == 'false'
+    assign all_products_on = false
+  endif
+  if shop_cfg_text contains '"allProductsEnabled":false' or shop_cfg_text contains '"allProductsEnabled": false' or shop_cfg_text contains '"allProductsEnabled":0'
+    assign all_products_on = false
+  endif
+  if shop_cfg_json != blank and shop_cfg_json != '{}' and shop_cfg_json != 'null'
+    if shop_cfg_json contains '"allProductsEnabled":false' or shop_cfg_json contains '"allProductsEnabled": false' or shop_cfg_json contains '"allProductsEnabled":0'
+      assign all_products_on = false
+    endif
+  endif
+  if shop_cfg_text contains '"productScope":"collection"' or shop_cfg_json contains '"productScope":"collection"'
+    assign scope = 'collection'
+  endif
+  if shop_cfg_text contains '"productScope":"tag"' or shop_cfg_json contains '"productScope":"tag"'
+    assign scope = 'tag'
+  endif
+  if scope == 'all' and all_products_on == false
+    if shop_cfg.ruleCollectionIds
+      assign scope = 'collection'
+    elsif shop_cfg.ruleTags
+      assign scope = 'tag'
+    else
+      assign scope = 'selected'
+    endif
+  endif
+  if scope == 'selected' or scope == 'collection' or scope == 'tag'
+    assign all_products_on = false
+  endif
+  assign shop_on = true
+  if shop_cfg.enabled == false or shop_cfg.enabled == 'false'
+    assign shop_on = false
+  endif
+  if shop_cfg == blank or shop_cfg_json == '{}' or shop_cfg_json == 'null' or shop_cfg_json == blank
+    assign shop_on = true
+    if scope != 'selected'
+      assign all_products_on = true
+    endif
+  endif
+  assign show = false
+  assign product_off = false
+  assign pp_in_collection = false
+  assign pp_has_tag = false
+  if shop_cfg.ruleCollectionIds
+    for col in product.collections
+      assign col_id = col.id | append: ''
+      assign col_gid = 'gid://shopify/Collection/' | append: col_id
+      for rid in shop_cfg.ruleCollectionIds
+        assign rid_s = rid | append: '' | strip
+        if rid_s == col_id or rid_s == col_gid
+          assign pp_in_collection = true
+        endif
+      endfor
+    endfor
+  endif
+  if shop_cfg.ruleTags
+    for rt in shop_cfg.ruleTags
+      assign rt_l = rt | downcase | strip
+      for pt in product.tags
+        assign pt_l = pt | downcase | strip
+        if pt_l == rt_l and rt_l != blank
+          assign pp_has_tag = true
+        endif
+      endfor
+    endfor
+  endif
+  assign pp_targeted = false
+  if scope == 'all' and all_products_on
+    assign pp_targeted = true
+  elsif scope == 'collection' and pp_in_collection
+    assign pp_targeted = true
+  elsif scope == 'tag' and pp_has_tag
+    assign pp_targeted = true
+  endif
+  assign product_enabled = false
+  if product_cfg.enabled == true or product_cfg.partialEnabled == true
+    assign product_enabled = true
+  endif
+  assign product_explicit_off = false
+  assign product_cfg_json = product_cfg | json | default: ''
+  if product_cfg_json != blank and product_cfg_json != 'null' and product_cfg_json != '{}' and product_cfg_json != '""'
+    if product_enabled
+      assign product_explicit_off = false
+    elsif product_cfg_json contains '"enabled":false' or product_cfg_json contains '"enabled": false' or product_cfg_json contains '"partialEnabled":false' or product_cfg_json contains '"partialEnabled": false'
+      assign product_explicit_off = true
+    endif
+  endif
+  if shop_on
+    if scope == 'selected'
+      if product_enabled
+        assign show = true
+      else
+        assign product_off = true
+      endif
+    elsif product_explicit_off
+      assign show = false
+      assign product_off = true
+    elsif product_enabled or pp_targeted or all_products_on
+      assign show = true
+    else
+      assign product_off = true
+    endif
+  endif
+
+  assign symbol = shop_cfg.currencySymbol | default: '₹'
+  assign note = shop_cfg.note | default: 'No EMI available for COD orders. Remaining payment must be paid to the delivery partner.'
+  assign pay_rule = shop_cfg.payRuleType | default: 'fixed'
+  assign fixed_amount = 500
+  assign pay_percent = shop_cfg.percent | default: 25
+  assign custom_amount = shop_cfg.customAmount | default: 0
+  assign skus_json = product_cfg.skus | json
+  if skus_json == blank or skus_json == 'null'
+    assign skus_json = '[]'
+  endif
+-%}
+
+<div
+  class="pp-atc-config"
+  hidden
+  data-pp-root
+  data-pp-shop
+  data-shop-on="{{ shop_on }}"
+  data-enabled="{{ show }}"
+  data-product-off="{{ product_off }}"
+  data-scope="{{ scope }}"
+  data-all-products="{% if all_products_on %}true{% else %}false{% endif %}"
+  data-rule-collection-ids="{% if shop_cfg.ruleCollectionIds %}{{ shop_cfg.ruleCollectionIds | join: ',' }}{% endif %}"
+  data-rule-tags="{% if shop_cfg.ruleTags %}{{ shop_cfg.ruleTags | join: ',' }}{% endif %}"
+  data-page-collection-id="{{ collection.id }}"
+  data-pay-rule="{{ pay_rule }}"
+  data-percent="{{ pay_percent }}"
+  data-fixed="{{ fixed_amount }}"
+  data-custom="{{ custom_amount }}"
+  data-fixed-amount="{{ fixed_amount }}"
+  data-custom-amount="{{ custom_amount }}"
+  data-product-id="{{ product.id }}"
+  data-handle="{{ product.handle }}"
+  data-price="{{ variant.price }}"
+  data-sku="{{ variant.sku | escape }}"
+  data-skus='{{ skus_json }}'
+  data-deposit="{% if pay_rule == 'percent' %}{% else %}{{ fixed_amount }}{% endif %}"
+  data-symbol="{{ symbol }}"
+  data-surcharge="{{ shop_cfg.surcharge | default: 500 }}"
+  data-fully-cod-enabled="{% if shop_cfg.fullyCodEnabled == false %}false{% else %}true{% endif %}"
+  data-surcharge-variant="{{ shop_cfg.surchargeVariantId | default: '' | escape }}"
+  data-surcharge-variant-numeric="{{ shop_cfg.surchargeVariantNumericId | default: '' | escape }}"
+  data-note="{{ note | escape }}"
+></div>
+
+{% comment %}Checkout intercept JS loads from the app embed (sync). Do not defer-duplicate here.{% endcomment %}
+<script src="{{ 'pulsepay-cart.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Partial payment",
+  "target": "section",
+  "templates": ["product"],
+  "stylesheet": "partial-payment.css",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Optional on the product template. Dawn Add to cart is native. Enable the Partial payment app embed (all pages) so cart-notification, cart drawer, and /cart Checkout open the Order summary modal. Product page Buy it now stays visible."
+    }
+  ]
+}
+{% endschema %}

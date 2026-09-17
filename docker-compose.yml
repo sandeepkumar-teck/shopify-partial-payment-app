@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: partialpay
+      POSTGRES_PASSWORD: partialpay
+      POSTGRES_DB: partialpay
+    volumes:
+      - partialpay_pg:/var/lib/postgresql/data
+
+volumes:
+  partialpay_pg:

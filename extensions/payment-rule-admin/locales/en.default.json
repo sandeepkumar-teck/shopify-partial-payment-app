@@ -1,0 +1,4 @@
+{
+  "name": "PartialPay order status",
+  "description": "Shows Pay now, remaining COD, and collection status on the order"
+}

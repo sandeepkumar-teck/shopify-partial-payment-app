@@ -1,0 +1,4 @@
+{
+  "name": "PartialPay checkout price",
+  "description": "Sets the checkout line price to the selected deposit without striking through catalog price"
+}

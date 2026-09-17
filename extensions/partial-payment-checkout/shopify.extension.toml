@@ -1,0 +1,39 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "t:name"
+description = "t:description"
+handle = "partial-payment-checkout"
+type = "ui_extension"
+uid = "a8c4e21f-6b90-4d3e-9f17-2c8b4e91d001"
+
+  [extensions.capabilities]
+  api_access = true
+
+  [[extensions.targeting]]
+  module = "./src/CheckoutPicker.jsx"
+  target = "purchase.checkout.block.render"
+
+    [[extensions.targeting.metafields]]
+    namespace = "$app"
+    key = "partial_payment"
+
+  [[extensions.targeting]]
+  module = "./src/CartLineItem.jsx"
+  target = "purchase.checkout.cart-line-item.render-after"
+
+  [[extensions.targeting]]
+  module = "./src/CartLineItem.jsx"
+  target = "purchase.thank-you.cart-line-item.render-after"
+
+  [[extensions.targeting]]
+  module = "./src/CartLineList.jsx"
+  target = "purchase.checkout.cart-line-list.render-after"
+
+  [[extensions.targeting]]
+  module = "./src/CartLineList.jsx"
+  target = "purchase.thank-you.cart-line-list.render-after"
+
+  [[extensions.targeting]]
+  module = "./src/ThankYouStatus.jsx"
+  target = "purchase.thank-you.block.render"

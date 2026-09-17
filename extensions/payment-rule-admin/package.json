@@ -1,0 +1,13 @@
+{
+  "name": "payment-rule-admin",
+  "private": true,
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@preact/signals": "^2.3.x",
+    "@prisma/client": "6.19.3",
+    "@shopify/ui-extensions": "~2026.7.0",
+    "preact": "^10.10.x",
+    "prisma": "6.19.3"
+  }
+}

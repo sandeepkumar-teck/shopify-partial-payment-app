@@ -1,0 +1,65 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "731f25bfd3186d3d1a159a0fac7bd4a8"
+application_url = "https://example.com"
+embedded = true
+name = "PartialPay"
+
+[access_scopes]
+scopes = "read_products,write_products,read_publications,write_publications,read_orders,write_orders,write_order_edits,read_customers,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,read_discounts,write_discounts,read_cart_transforms,write_cart_transforms,read_payment_customizations,write_payment_customizations,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
+
+[shop.metafields.app.partial_payment]
+type = "json"
+name = "Partial payment settings"
+description = "Shop deposit (fixed / percent / custom), who it applies to (all / collection / tag / SKUs), and COD extra"
+
+  [shop.metafields.app.partial_payment.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+[shop.metafields.app.scheduled_rules]
+type = "json"
+name = "Partial payment scheduled rules"
+description = "Date-window overlay for products, collections, or tags. Independent of the Products tab shop rule."
+
+  [shop.metafields.app.scheduled_rules.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+[product.metafields.app.partial_payment]
+type = "json"
+name = "Partial payment"
+description = "Per-product ON/OFF and optional pay-rule override"
+
+  [product.metafields.app.partial_payment.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+[order.metafields.app.partial_payment]
+type = "json"
+name = "Partial payment"
+description = "Pay now, remaining COD, and payment status"
+
+  [order.metafields.app.partial_payment.access]
+  admin = "merchant_read_write"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders-create"
+  topics = ["orders/create", "orders/updated", "orders/paid"]
+
+[auth]
+redirect_urls = [ "https://example.com/api/auth" ]
+
+[build]
+automatically_update_urls_on_dev = true

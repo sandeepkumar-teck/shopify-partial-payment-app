@@ -1,0 +1,47 @@
+query Input {
+  cart {
+    lines {
+      id
+      quantity
+      depositNow: attribute(key: "_partial_pay_now") {
+        value
+      }
+      payNow: attribute(key: "pay_now") {
+        value
+      }
+      payNowVisible: attribute(key: "Pay now") {
+        value
+      }
+      remainingCod: attribute(key: "Remaining COD") {
+        value
+      }
+      fullPriceVisible: attribute(key: "Full price") {
+        value
+      }
+      statusVisible: attribute(key: "Status") {
+        value
+      }
+      surchargeLine: attribute(key: "_cod_surcharge") {
+        value
+      }
+      codExtra: attribute(key: "COD extra") {
+        value
+      }
+      cost {
+        amountPerQuantity {
+          amount
+        }
+      }
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          title
+          product {
+            title
+          }
+        }
+      }
+    }
+  }
+}

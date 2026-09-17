@@ -1,0 +1,13 @@
+{%- liquid
+  assign cfg = product.metafields['$app']['partial_payment'].value
+  if cfg == blank
+    assign cfg = product.metafields['$app'].partial_payment.value
+  endif
+  if cfg == blank
+    assign cfg = product.metafields.app.partial_payment.value
+  endif
+  if cfg == blank
+    assign cfg = product.metafields['app']['partial_payment'].value
+  endif
+-%}
+{%- if cfg == blank -%}{}{%- else -%}{{ cfg | json }}{%- endif -%}
