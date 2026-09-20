@@ -75,6 +75,7 @@ function buildOrdersQuery({
           nodes {
             title
             image { url }
+            product { id }
             customAttributes { key value }
           }
         }

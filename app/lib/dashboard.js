@@ -541,6 +541,7 @@ export function mapDashboardOrder(order) {
         ...payment,
         title: item.title,
         image: item.image?.url || "",
+        productId: item.product?.id || "",
       };
     })
     .filter(Boolean);

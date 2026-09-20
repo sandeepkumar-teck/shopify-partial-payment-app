@@ -130,6 +130,10 @@ model OrderSnapshot {
   remainingCod           Decimal?  @db.Decimal(14, 2)
   collectedCod           Decimal?  @db.Decimal(14, 2)
   fullPrice              Decimal?  @db.Decimal(14, 2)
+  ruleSource             String?
+  payRuleType            String?
+  ruleValue              Decimal?  @db.Decimal(14, 2)
+  ruleLabel              String?
   invoiceScheduled       Boolean   @default(false)
   invoiceSent            Boolean   @default(false)
   invoiceMode            String?

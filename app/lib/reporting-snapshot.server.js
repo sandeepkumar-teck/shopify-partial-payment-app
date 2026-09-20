@@ -1,6 +1,6 @@
 import prisma from "../db.server";
 import { mapDashboardOrder } from "./dashboard";
-import { productAllowsPartial } from "./partial-payment";
+import { FIXED_DEPOSIT_AMOUNT, productAllowsPartial } from "./partial-payment";
 
 function text(value, max = 500) {
   const result = String(value ?? "").trim();
@@ -383,6 +383,137 @@ export async function syncScheduledRuleSnapshots(admin, payload = {}, fallbackSh
   }
 }
 
+function asNumber(value) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function amountClose(left, right, epsilon = 0.05) {
+  return Math.abs(Number(left || 0) - Number(right || 0)) <= epsilon;
+}
+
+function formatRuleValue(value) {
+  const parsed = asNumber(value);
+  if (parsed == null) return "";
+  return String(parsed);
+}
+
+function inferAppliedRuleFromAmounts(mapped) {
+  const payNow = Number(mapped?.payNow || 0);
+  const fullPrice = Number(mapped?.fullPrice || 0);
+  const remaining = Number(mapped?.remainingCod || 0);
+  const surcharge = (mapped?.lines || []).reduce(
+    (sum, line) => sum + Number(line?.surcharge || 0),
+    0,
+  );
+  const status = String(mapped?.status || "");
+
+  if (status === "unpaid_cod" || (payNow <= 0 && remaining > 0)) {
+    return { payRuleType: "fully_cod", ruleValue: surcharge > 0 ? surcharge : remaining };
+  }
+  if (surcharge > 0 && amountClose(payNow, surcharge)) {
+    return { payRuleType: "fully_cod", ruleValue: surcharge };
+  }
+  if (amountClose(payNow, FIXED_DEPOSIT_AMOUNT) && fullPrice >= FIXED_DEPOSIT_AMOUNT) {
+    return { payRuleType: "fixed", ruleValue: FIXED_DEPOSIT_AMOUNT };
+  }
+  if (fullPrice > 0 && payNow > 0) {
+    const percent = (payNow / fullPrice) * 100;
+    const nearest = Math.round(percent);
+    if (Math.abs(percent - nearest) < 0.2 && nearest >= 1 && nearest <= 99) {
+      return { payRuleType: "percent", ruleValue: nearest };
+    }
+  }
+  return { payRuleType: "custom", ruleValue: payNow };
+}
+
+function amountsMatchHint(hint, inferred, mapped) {
+  const type = String(hint?.payRuleType || "").toLowerCase();
+  if (!type || type === "shop") return false;
+  const payNow = Number(mapped?.payNow || 0);
+  const fullPrice = Number(mapped?.fullPrice || 0);
+  if (type === "percent") {
+    const percent = asNumber(hint.percent);
+    return percent != null && fullPrice > 0 && amountClose(payNow, (fullPrice * percent) / 100);
+  }
+  if (type === "fixed") return amountClose(payNow, FIXED_DEPOSIT_AMOUNT);
+  if (type === "custom") return amountClose(payNow, hint.customAmount);
+  if (type === "fully_cod") return inferred.payRuleType === "fully_cod";
+  return type === inferred.payRuleType;
+}
+
+function buildRuleLabel(source, type, value) {
+  const src = source || "Inferred";
+  if (type === "percent") return `${src} · Percent ${formatRuleValue(value)}%`;
+  if (type === "fixed") return `${src} · Fixed ₹${formatRuleValue(value || FIXED_DEPOSIT_AMOUNT)}`;
+  if (type === "custom") return `${src} · Custom ₹${formatRuleValue(value)}`;
+  if (type === "fully_cod") return `${src} · Fully COD`;
+  return src;
+}
+
+async function appliedRuleForOrder(db, shop, mapped, meta = {}) {
+  const inferred = inferAppliedRuleFromAmounts(mapped);
+  let payRuleType = text(meta.payRuleType, 50) || inferred.payRuleType;
+  let ruleValue = asNumber(meta.ruleValue) ?? inferred.ruleValue;
+  let ruleSource = text(meta.ruleSource, 50) || "Inferred";
+
+  try {
+    const settingsRows = await db.$queryRaw`
+      SELECT "payRuleType", percent, "fixedAmount", "customAmount"
+      FROM "ShopSettingsSnapshot" WHERE shop = ${shop} LIMIT 1
+    `;
+    const productRows = await db.$queryRaw`
+      SELECT "productId", "productTitle", "ruleSource", "payRuleType", percent, "fixedAmount", "customAmount"
+      FROM "ProductRuleSnapshot" WHERE shop = ${shop}
+    `;
+    const settings = settingsRows?.[0] || null;
+    const lines = Array.isArray(mapped?.lines) ? mapped.lines : [];
+    const matchedProducts = (productRows || []).filter((row) =>
+      lines.some(
+        (line) =>
+          (line.productId && row.productId === line.productId) ||
+          (line.title && row.productTitle && String(line.title) === String(row.productTitle)),
+      ),
+    );
+    const productHint = matchedProducts.find((row) => amountsMatchHint(row, inferred, mapped));
+    if (productHint && String(productHint.ruleSource || "") === "Product") {
+      ruleSource = "Product";
+      payRuleType = String(productHint.payRuleType || payRuleType).toLowerCase();
+      ruleValue =
+        payRuleType === "percent"
+          ? asNumber(productHint.percent)
+          : payRuleType === "custom"
+            ? asNumber(productHint.customAmount)
+            : asNumber(productHint.fixedAmount) ?? ruleValue;
+    } else if (settings && amountsMatchHint(settings, inferred, mapped)) {
+      ruleSource = "Shop";
+      payRuleType = String(settings.payRuleType || payRuleType).toLowerCase();
+      ruleValue =
+        payRuleType === "percent"
+          ? asNumber(settings.percent)
+          : payRuleType === "custom"
+            ? asNumber(settings.customAmount)
+            : asNumber(settings.fixedAmount) ?? ruleValue;
+    } else {
+      payRuleType = inferred.payRuleType;
+      ruleValue = inferred.ruleValue;
+      ruleSource = "Inferred";
+    }
+  } catch {
+    payRuleType = inferred.payRuleType;
+    ruleValue = inferred.ruleValue;
+    ruleSource = "Inferred";
+  }
+
+  return {
+    ruleSource,
+    payRuleType,
+    ruleValue,
+    ruleLabel: buildRuleLabel(ruleSource, payRuleType, ruleValue),
+  };
+}
+
 async function writeOrderSnapshot(db, identity, order, fallbackCustomer = {}) {
   const mapped = mapDashboardOrder(order);
   if (!mapped || !identity.shop || !order?.id) return;
@@ -390,12 +521,22 @@ async function writeOrderSnapshot(db, identity, order, fallbackCustomer = {}) {
   const customer = customerFromOrder(order, fallbackCustomer);
   const key = `${identity.shop}:${order.id}`;
   const tags = json(order.tags, []);
-  const lines = json(mapped.lines, []);
+  const applied = await appliedRuleForOrder(db, identity.shop, mapped, meta);
+  const lines = json(
+    (mapped.lines || []).map((line) => ({
+      ...line,
+      ruleSource: applied.ruleSource,
+      payRuleType: applied.payRuleType,
+      ruleLabel: applied.ruleLabel,
+    })),
+    [],
+  );
   await db.$executeRaw`
     INSERT INTO "OrderSnapshot" (
       "shopOrderKey", shop, "orderId", "orderName", "customerName", "customerEmail",
       "shopifyFinancialStatus", "partialPaymentStatus", "payNow", "remainingCod",
-      "collectedCod", "fullPrice", "invoiceScheduled", "invoiceMode", "invoiceDays",
+      "collectedCod", "fullPrice", "ruleSource", "payRuleType", "ruleValue", "ruleLabel",
+      "invoiceScheduled", "invoiceMode", "invoiceDays",
       "invoiceSent", "invoiceDueAt", "invoiceSentAt", "collectedVia", tags, "lineDetails",
       "orderCreatedAt"
     )
@@ -405,6 +546,7 @@ async function writeOrderSnapshot(db, identity, order, fallbackCustomer = {}) {
       ${text(order.displayFinancialStatus || order.financial_status, 50)},
       ${text(mapped.status, 50)}, ${number(mapped.payNow)}, ${number(mapped.remainingCod)},
       ${number(mapped.collectedCod)}, ${number(mapped.fullPrice)},
+      ${applied.ruleSource}, ${applied.payRuleType}, ${number(applied.ruleValue)}, ${applied.ruleLabel},
       ${mapped.invoiceScheduled === true}, ${text(mapped.invoiceMode, 50)},
       ${integer(mapped.invoiceDays)}, ${Boolean(mapped.invoiceSentAt)},
       ${date(mapped.invoiceDueAt)}, ${date(mapped.invoiceSentAt)},
@@ -420,6 +562,10 @@ async function writeOrderSnapshot(db, identity, order, fallbackCustomer = {}) {
       "remainingCod" = EXCLUDED."remainingCod",
       "collectedCod" = EXCLUDED."collectedCod",
       "fullPrice" = EXCLUDED."fullPrice",
+      "ruleSource" = EXCLUDED."ruleSource",
+      "payRuleType" = EXCLUDED."payRuleType",
+      "ruleValue" = EXCLUDED."ruleValue",
+      "ruleLabel" = EXCLUDED."ruleLabel",
       "invoiceScheduled" = EXCLUDED."invoiceScheduled",
       "invoiceSent" = EXCLUDED."invoiceSent",
       "invoiceMode" = EXCLUDED."invoiceMode",
@@ -478,6 +624,7 @@ export async function syncOrderSnapshotFromAdmin(
               nodes {
                 title quantity
                 image { url }
+                product { id }
                 originalUnitPriceSet { shopMoney { amount } }
                 discountedUnitPriceSet { shopMoney { amount } }
                 customAttributes { key value }
